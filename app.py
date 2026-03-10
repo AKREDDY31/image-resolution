@@ -4,6 +4,7 @@ import numpy as np
 from PIL import Image
 import torch
 import os
+import requests
 
 from realesrgan import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
@@ -12,16 +13,44 @@ from gfpgan import GFPGANer
 st.set_page_config(page_title="AI Image Restoration", layout="wide")
 
 st.title("AI Image Restoration Platform")
-st.write("Enhance blurry and low-resolution images using trained AI models")
+st.write("Enhance blurry and low-resolution images using AI models")
 
-# ---------------- MODEL PATHS ----------------
+# ---------------- CREATE MODEL FOLDER ----------------
+
+os.makedirs("models", exist_ok=True)
 
 realesrgan_path = "models/RealESRGAN_x4plus.pth"
 gfpgan_path = "models/GFPGANv1.4.pth"
 
-if not os.path.exists(realesrgan_path) or not os.path.exists(gfpgan_path):
-    st.error("Model files missing in models folder")
-    st.stop()
+# ---------------- DOWNLOAD FUNCTION ----------------
+
+def download_file(url, path):
+
+    if os.path.exists(path):
+        return
+
+    st.write(f"Downloading {os.path.basename(path)} ...")
+
+    r = requests.get(url, stream=True)
+
+    with open(path, "wb") as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+
+# ---------------- DOWNLOAD MODELS ----------------
+
+download_file(
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+    realesrgan_path
+)
+
+download_file(
+    "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+    gfpgan_path
+)
+
+# ---------------- DEVICE ----------------
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -62,7 +91,7 @@ def load_models():
 
 face_enhancer = load_models()
 
-# ---------------- UI ----------------
+# ---------------- IMAGE UPLOAD ----------------
 
 uploaded_file = st.file_uploader("Upload Image", type=["png","jpg","jpeg"])
 
