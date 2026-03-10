@@ -4,53 +4,54 @@ import numpy as np
 from PIL import Image
 import torch
 import os
-import urllib.request
+import requests
 
 from realesrgan import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from gfpgan import GFPGANer
-
 
 st.set_page_config(page_title="AI Image Restoration", layout="wide")
 
 st.title("AI Image Restoration Platform")
 st.write("Enhance blurry and low-resolution images using AI")
 
-
-# ---------------- CREATE MODEL DIRECTORY ----------------
+# ---------------- CREATE MODEL FOLDER ----------------
 
 os.makedirs("models", exist_ok=True)
 
 realesrgan_path = "models/RealESRGAN_x4plus.pth"
 gfpgan_path = "models/GFPGANv1.4.pth"
 
+# ---------------- MODEL DOWNLOAD FUNCTION ----------------
 
-# ---------------- DOWNLOAD MODELS IF MISSING ----------------
+def download_file(url, path):
+    if os.path.exists(path):
+        return
 
-if not os.path.exists(realesrgan_path):
+    st.write(f"Downloading {os.path.basename(path)}...")
 
-    st.write("Downloading RealESRGAN model...")
+    r = requests.get(url, stream=True)
 
-    urllib.request.urlretrieve(
-        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-        realesrgan_path
-    )
+    with open(path, "wb") as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
 
+# ---------------- DOWNLOAD MODELS ----------------
 
-if not os.path.exists(gfpgan_path):
+download_file(
+    "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+    realesrgan_path
+)
 
-    st.write("Downloading GFPGAN model...")
-
-    urllib.request.urlretrieve(
-        "https://github.com/TencentARC/GFPGAN/releases/download/v1.4/GFPGANv1.4.pth",
-        gfpgan_path
-    )
-
+download_file(
+    "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+    gfpgan_path
+)
 
 # ---------------- DEVICE ----------------
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
 
 # ---------------- LOAD MODELS ----------------
 
@@ -73,7 +74,7 @@ def load_models():
         tile=200,
         tile_pad=10,
         pre_pad=0,
-        half=True if device == "cuda" else False,
+        half=False,
         device=device
     )
 
@@ -87,16 +88,11 @@ def load_models():
 
     return face_enhancer
 
-
 face_enhancer = load_models()
 
+# ---------------- IMAGE UPLOAD ----------------
 
-# ---------------- IMAGE INPUT ----------------
-
-uploaded_file = st.file_uploader(
-    "Upload Image",
-    type=["png", "jpg", "jpeg"]
-)
+uploaded_file = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
 
@@ -114,7 +110,7 @@ if uploaded_file:
 
             img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-            cropped_faces, restored_faces, output = face_enhancer.enhance(
+            _, _, output = face_enhancer.enhance(
                 img,
                 has_aligned=False,
                 only_center_face=False,
@@ -126,8 +122,6 @@ if uploaded_file:
             with col2:
                 st.subheader("Enhanced Image")
                 st.image(enhanced, use_column_width=True)
-
-            st.success("Enhancement completed")
 
             result_bytes = cv2.imencode(".png", output)[1].tobytes()
 
