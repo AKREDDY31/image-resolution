@@ -1,35 +1,27 @@
-import streamlit as st
+import os
 import cv2
 import numpy as np
 import torch
-import os
 import requests
+import gradio as gr
 from PIL import Image
 
 from realesrgan import RealESRGANer
 from basicsr.archs.rrdbnet_arch import RRDBNet
 
-st.set_page_config(page_title="AI Image Restoration", layout="wide")
-
-st.title("AI Image Restoration Platform")
-st.write("Enhance blurry and low-resolution images using AI")
-
 # -----------------------
-# MODEL SETUP
+# Model download
 # -----------------------
 
 os.makedirs("models", exist_ok=True)
-
 model_path = "models/RealESRGAN_x4plus.pth"
 
 def download_model():
-
     if os.path.exists(model_path):
         return
 
-    st.info("Downloading AI model... (first run only)")
-
     url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
+    print("Downloading RealESRGAN model...")
 
     r = requests.get(url, stream=True)
 
@@ -41,70 +33,64 @@ def download_model():
 download_model()
 
 # -----------------------
-# LOAD MODEL
+# Load AI model
 # -----------------------
 
-@st.cache_resource
-def load_model():
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    model = RRDBNet(
-        num_in_ch=3,
-        num_out_ch=3,
-        num_feat=64,
-        num_block=23,
-        num_grow_ch=32,
-        scale=4
-    )
+model = RRDBNet(
+    num_in_ch=3,
+    num_out_ch=3,
+    num_feat=64,
+    num_block=23,
+    num_grow_ch=32,
+    scale=4
+)
 
-    upsampler = RealESRGANer(
-        scale=4,
-        model_path=model_path,
-        model=model,
-        tile=128,         # memory safe
-        tile_pad=10,
-        pre_pad=0,
-        half=False,
-        device="cpu"
-    )
-
-    return upsampler
-
-model = load_model()
+upsampler = RealESRGANer(
+    scale=4,
+    model_path=model_path,
+    model=model,
+    tile=128,
+    tile_pad=10,
+    pre_pad=0,
+    half=False,
+    device=device
+)
 
 # -----------------------
-# IMAGE UPLOAD
+# Image enhancement
 # -----------------------
 
-uploaded = st.file_uploader("Upload Image", type=["png","jpg","jpeg"])
+def enhance_image(image):
 
-if uploaded:
+    if image is None:
+        return None
 
-    image = Image.open(uploaded)
+    img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-    col1, col2 = st.columns(2)
+    output, _ = upsampler.enhance(img, outscale=4)
 
-    with col1:
-        st.subheader("Input Image")
-        st.image(image)
+    output = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
 
-    if st.button("Enhance Image"):
+    return Image.fromarray(output)
 
-        with st.spinner("Enhancing image..."):
+# -----------------------
+# Gradio UI
+# -----------------------
 
-            img = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+title = "AI Image Restoration Platform"
 
-            output, _ = model.enhance(img, outscale=4)
+description = """
+Upload a blurry or low-resolution image and enhance it using RealESRGAN AI.
+"""
 
-            output = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
+interface = gr.Interface(
+    fn=enhance_image,
+    inputs=gr.Image(type="pil", label="Upload Image"),
+    outputs=gr.Image(type="pil", label="Enhanced Image"),
+    title=title,
+    description=description
+)
 
-            with col2:
-                st.subheader("Enhanced Image")
-                st.image(output)
-
-            _, buffer = cv2.imencode(".png", cv2.cvtColor(output, cv2.COLOR_RGB2BGR))
-
-            st.download_button(
-                "Download Enhanced Image",
-                buffer.tobytes(),
-                "enhanced.png"
-            )
+interface.launch()
