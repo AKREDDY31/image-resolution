@@ -1,4 +1,4 @@
-streamlit
+gradio
 torch==2.0.1
 torchvision==0.15.2
 opencv-python-headless
@@ -6,3 +6,4 @@ numpy
 pillow
 requests
 realesrgan==0.3.0
+basicsr==1.4.2
