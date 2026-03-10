@@ -1,5 +1,5 @@
-streamlit
-opencv-contrib-python-headless==4.8.1.78
-numpy
-pillow
-requests
+streamlit==1.35.0
+opencv-python-headless==4.8.1.78
+numpy==1.26.4
+pillow==10.3.0
+requests==2.31.0
